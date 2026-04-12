@@ -90,7 +90,7 @@ async fn test_hil_mqtt_integration() -> Result<(), Box<dyn Error>> {
     let build_status = Command::new("cargo")
         .arg("build")
         .arg("--release")
-        .arg("--bin=rs")
+        .arg("--bin=ems-line-controller-pst")
         .arg("--features=defmt,esp-hal,embassy-time,esp-hal-embassy,rtt-target,esp-alloc,embassy-executor,embassy-net,esp-bootloader-esp-idf,critical-section,esp-wifi,smoltcp,static_cell,rust-mqtt,heapless,shtcx,embedded-hal")
         .env("MQTT_PORT", broker.port.to_string())
         .status()?;
