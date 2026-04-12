@@ -1,5 +1,6 @@
 # EMS Line Controller PST ⚡🔄
 
+![](https://img.shields.io/gitlab/pipeline-status/arcnode-io/ems-line-controller-pst?branch=main&logo=gitlab)
 ![](https://img.shields.io/badge/1.93-gray?logo=rust)
 ![](https://img.shields.io/badge/esp32-gray?logo=espressif)
 ![](https://img.shields.io/badge/mqtt-gray?logo=mqtt)
