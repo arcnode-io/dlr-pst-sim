@@ -43,7 +43,7 @@ mod integration_tests {
             .with_sda(peripherals.GPIO10)
             .with_scl(peripherals.GPIO8);
 
-        let mut client = app::temperature::temperature_client::TemperatureClient::new(i2c);
+        let mut client = ems_line_controller_pst::temperature::temperature_client::TemperatureClient::new(i2c);
 
         // Act - Read temperature
         let fahrenheit = client.read_fahrenheit();
