@@ -131,7 +131,7 @@ async fn test_hil_mqtt_integration() -> Result<(), Box<dyn Error>> {
         "[{:.1}s] 📱 Flashing firmware...",
         start.elapsed().as_secs_f32()
     );
-    flash_and_reset("target/riscv32imc-unknown-none-elf/release/rs")?;
+    flash_and_reset("target/riscv32imc-unknown-none-elf/release/ems-line-controller-pst")?;
     println!(
         "[{:.1}s] ✅ Firmware flashed and device reset",
         start.elapsed().as_secs_f32()
