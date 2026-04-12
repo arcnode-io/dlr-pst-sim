@@ -1,5 +1,5 @@
 [package]
-name = "rust-embassy"
+name = "ems-line-controller-pst"
 version = "1.0.0-beta"
 edition = "2024"
 rust-version = "1.93.0"
@@ -83,11 +83,11 @@ tokio = { version = "1.42", features = ["full"] }
 axum = "0.8"
 
 [lib]
-name = "app"
+name = "ems_line_controller_pst"
 path = "src/app.rs"
 
 [[bin]]
-name = "rs"
+name = "ems-line-controller-pst"
 path = "src/main.rs"
 test = false
 required-features = [

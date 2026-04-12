@@ -1,4 +1,4 @@
-//! Application library for rust-embassy template.
+//! Application library for ems-line-controller-pst.
 //!
 //! This library provides temperature monitoring and publishing.
 
