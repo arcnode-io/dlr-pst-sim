@@ -60,12 +60,16 @@ gpio5 --> relay4 --> tap4
 
 ## MQTT Topics
 
+Per [ems/topic_structure_adr.md](../ems/topic_structure_adr.md). Payload is `FloatSample {ts, value}` unless noted.
+
 **Subscribed:**
-- `sites/{site_id}/devices/dlr_sensor/calculations/amps/{dynamic_rating}`
+- `sites/{site_id}/devices/{dlr_device_id}/measurements/dynamic_rating/amps`
+- `sites/{site_id}/devices/{device_id}/commands/set/tap_position/none` — `EnumSample`
 
 **Published:**
-- `sites/{site_id}/devices/pst/measurements/volts/{output_voltage}`
-- `sites/{site_id}/devices/pst/status/{tap_position}`
+- `sites/{site_id}/devices/{device_id}/measurements/output_voltage/volts`
+- `sites/{site_id}/devices/{device_id}/measurements/tap_position/none` — `EnumSample`
+- `sites/{site_id}/devices/{device_id}/measurements/status/none` — `EnumSample`, LWT-backed
 
 ## Tap Control Logic
 
