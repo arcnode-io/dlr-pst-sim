@@ -33,7 +33,7 @@ async fn main(spawner: Spawner) {
     esp_alloc::heap_allocator!(size: 72 * 1024);
 
     info!("Connecting to WiFi...");
-    let stack = ems_line_controller_pst::network::setup_network(&spawner, peripherals).await;
+    let stack = dlr_pst_sim::network::setup_network(&spawner, peripherals).await;
     info!("WiFi connected!");
 
     // Reason: setup_network consumes peripherals, steal back for I2C (GPIO10/GPIO8 unused by WiFi)
@@ -45,5 +45,5 @@ async fn main(spawner: Spawner) {
             .with_scl(peripherals.GPIO8);
 
     info!("Hardware initialized. Starting application...");
-    ems_line_controller_pst::run(i2c, stack).await.ok();
+    dlr_pst_sim::run(i2c, stack).await.ok();
 }

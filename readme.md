@@ -1,7 +1,7 @@
-# EMS Line Controller PST ⚡🔄
+# DLR PST Sim ⚡🔄
 
-![](https://img.shields.io/gitlab/pipeline-status/arcnode-io/ems-line-controller-pst?branch=main&logo=gitlab)
-![](https://gitlab.com/arcnode-io/ems-line-controller-pst/badges/main/coverage.svg)
+![](https://img.shields.io/gitlab/pipeline-status/arcnode-io/dlr-pst-sim?branch=main&logo=gitlab)
+![](https://gitlab.com/arcnode-io/dlr-pst-sim/badges/main/coverage.svg)
 ![](https://img.shields.io/badge/1.93-gray?logo=rust)
 ![](https://img.shields.io/badge/esp32--c3-gray?logo=espressif)
 ![](https://img.shields.io/badge/mqtt-gray?logo=mqtt)
@@ -73,7 +73,7 @@ Per [ems/topic_structure_adr.md](../ems/topic_structure_adr.md). Payload is `Flo
 
 ## Tap Control Logic
 
-The transformer adjusts tap position based on the dynamic rating received from `ems-line-controller-dlr`:
+The transformer adjusts tap position based on the dynamic rating received from `dlr-utility-envelope`:
 
 - Higher rating → lower tap (higher voltage)
 - Lower rating → higher tap (lower voltage)
@@ -119,7 +119,7 @@ The transformer adjusts tap position based on the dynamic rating received from `
 
 ```bash
 # Build + flash firmware
-cargo build --bin=ems-line-controller-pst --release
+cargo build --bin=dlr-pst-sim --release
 
 # Run on-device integration tests
 cargo cmd integration

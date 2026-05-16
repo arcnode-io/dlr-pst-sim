@@ -1,4 +1,4 @@
-//! Application library for ems-line-controller-pst.
+//! Application library for dlr-pst-sim.
 //!
 //! This library provides temperature monitoring and publishing.
 

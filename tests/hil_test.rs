@@ -90,7 +90,7 @@ async fn test_hil_mqtt_integration() -> Result<(), Box<dyn Error>> {
     let build_status = Command::new("cargo")
         .arg("build")
         .arg("--release")
-        .arg("--bin=ems-line-controller-pst")
+        .arg("--bin=dlr-pst-sim")
         .arg("--features=defmt,esp-hal,embassy-time,esp-hal-embassy,rtt-target,esp-alloc,embassy-executor,embassy-net,esp-bootloader-esp-idf,critical-section,esp-wifi,smoltcp,static_cell,rust-mqtt,heapless,shtcx,embedded-hal")
         .env("MQTT_PORT", broker.port.to_string())
         .status()?;
@@ -131,7 +131,7 @@ async fn test_hil_mqtt_integration() -> Result<(), Box<dyn Error>> {
         "[{:.1}s] 📱 Flashing firmware...",
         start.elapsed().as_secs_f32()
     );
-    flash_and_reset("target/riscv32imc-unknown-none-elf/release/ems-line-controller-pst")?;
+    flash_and_reset("target/riscv32imc-unknown-none-elf/release/dlr-pst-sim")?;
     println!(
         "[{:.1}s] ✅ Firmware flashed and device reset",
         start.elapsed().as_secs_f32()
