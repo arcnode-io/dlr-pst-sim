@@ -1,7 +1,7 @@
 //! Testcontainer fixtures with dynamic port allocation.
 
-use testcontainers::core::{IntoContainerPort, WaitFor};
-use testcontainers::{ContainerAsync, GenericImage, runners::AsyncRunner};
+use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
+use testcontainers::{ContainerAsync, GenericImage, ImageExt, runners::AsyncRunner};
 
 /// Connection info for a running testcontainer.
 ///
@@ -17,7 +17,13 @@ pub struct Container {
     _inner: ContainerAsync<GenericImage>,
 }
 
-/// Internal building block — start any Docker image with a single exposed port.
+/// Internal building block — start any Docker image with a single mapped port.
+///
+/// Uses `with_mapped_port(0, ...)` (single OS-assigned host binding) rather than
+/// `with_exposed_port`. The latter triggers testcontainers-rs's `publish_all_ports
+/// = true` branch — docker `-P` mode publishes EVERY image-EXPOSE port (HiveMQ
+/// exposes 1883/8000/8083/8443/8883), multiplying collision odds on a busy CI
+/// runner (e.g. Harbor on 8083).
 async fn start_container(
     image: &str,
     tag: &str,
@@ -25,8 +31,8 @@ async fn start_container(
     wait_for_log: &str,
 ) -> Result<Container, Box<dyn std::error::Error>> {
     let inner = GenericImage::new(image, tag)
-        .with_exposed_port(port.tcp())
         .with_wait_for(WaitFor::message_on_stdout(wait_for_log))
+        .with_mapped_port(0, ContainerPort::Tcp(port))
         .start()
         .await?;
 
