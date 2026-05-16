@@ -73,7 +73,7 @@ Per [ems/topic_structure_adr.md](../ems/topic_structure_adr.md). Payload is `Flo
 
 ## Tap Control Logic
 
-The transformer adjusts tap position based on the dynamic rating received from `dlr-utility-envelope`:
+The transformer adjusts tap position based on the dynamic rating received from `dlr-operating-envelope`:
 
 - Higher rating → lower tap (higher voltage)
 - Lower rating → higher tap (lower voltage)
