@@ -35,6 +35,10 @@ pub const MODE: &str = "beta";
 ///
 /// # Returns
 /// Ok(()) on successful initialization and first read (used for testing)
+// Reason: the `Result<(), ()>` is a test-observability affordance — dev mode
+// returns Ok(()) so a test can `.await` and assert one clean loop. Production
+// never returns Err; main.rs discards it with `.ok()`. No real error to type.
+#[allow(clippy::result_unit_err)]
 #[cfg(all(feature = "shtcx", feature = "rust-mqtt", feature = "embassy-net"))]
 pub async fn run<I2C>(i2c: I2C, stack: &'static embassy_net::Stack<'static>) -> Result<(), ()>
 where
