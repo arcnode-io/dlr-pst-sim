@@ -5,6 +5,20 @@
 /// MQTT topic for publishing temperature readings.
 pub const MQTT_TOPIC: &str = "test/temp/F";
 
+/// MQTT topic to subscribe to for the DLR dynamic line rating (amps).
+///
+/// Matches `dlr-operating-envelope/src/mqtt.py::MQTT_TOPIC` as it is
+/// published today. Provisional: both repos' readmes document the
+/// ADR-002 (`ems/topic_structure_adr.md`) contract
+/// (`sites/{site_id}/devices/{device_id}/measurements/dynamic_rating/amps`,
+/// `FloatSample {ts, value}`), but neither side's code implements it yet.
+/// Migrating this topic name is out of scope here -- tracked as a follow-up.
+pub const RATING_TOPIC: &str = "test/line_rating/A";
+
+/// MQTT topic for publishing the tap-position decision. Same provisional
+/// convention as `RATING_TOPIC` -- see its docs.
+pub const TAP_POSITION_TOPIC: &str = "test/tap_position";
+
 #[cfg(feature = "rust-mqtt")]
 use core::fmt::Write;
 #[cfg(feature = "rust-mqtt")]
@@ -139,5 +153,68 @@ impl<'a> Mqtt<'a> {
                 defmt::info!("❌ Failed to publish message: {:?}", e);
             }
         }
+    }
+
+    /// Publish a string value (e.g. an EnumSample label) to the specified topic.
+    ///
+    /// # Arguments
+    /// * `topic` - MQTT topic to publish to
+    /// * `value` - String payload to publish verbatim
+    pub async fn publish_str(&mut self, topic: &str, value: &str) {
+        #[cfg(feature = "defmt")]
+        defmt::info!("📤 Publishing to topic '{}': '{}'", topic, value);
+
+        match self
+            .client
+            .send_message(topic, value.as_bytes(), QualityOfService::QoS0, false)
+            .await
+        {
+            Ok(_) => {
+                #[cfg(feature = "defmt")]
+                defmt::info!("✅ Message published successfully");
+            }
+            Err(e) => {
+                #[cfg(feature = "defmt")]
+                defmt::info!("❌ Failed to publish message: {:?}", e);
+            }
+        }
+    }
+
+    /// Subscribe to a topic. Call once after `init()`, before the first
+    /// `try_receive_rating` call.
+    ///
+    /// # Arguments
+    /// * `topic` - MQTT topic to subscribe to
+    pub async fn subscribe(&mut self, topic: &str) {
+        match self.client.subscribe_to_topic(topic).await {
+            Ok(()) => {
+                #[cfg(feature = "defmt")]
+                defmt::info!("✅ Subscribed to topic '{}'", topic);
+            }
+            Err(e) => {
+                #[cfg(feature = "defmt")]
+                defmt::info!("❌ Failed to subscribe to '{}': {:?}", topic, e);
+            }
+        }
+    }
+
+    /// Poll for a pending subscribed message without blocking the caller.
+    ///
+    /// # Returns
+    /// The parsed numeric payload when a message is ready and decodes as a
+    /// float; `None` when nothing is pending, the payload isn't valid UTF-8,
+    /// or it doesn't parse as a number.
+    pub async fn try_receive_rating(&mut self) -> Option<f64> {
+        let (_topic, payload) = match self.client.receive_message_if_ready().await {
+            Ok(Some(msg)) => msg,
+            Ok(None) => return None,
+            Err(e) => {
+                #[cfg(feature = "defmt")]
+                defmt::info!("❌ Failed to poll for subscribed message: {:?}", e);
+                return None;
+            }
+        };
+
+        core::str::from_utf8(payload).ok()?.trim().parse().ok()
     }
 }

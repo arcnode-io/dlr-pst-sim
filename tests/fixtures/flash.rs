@@ -38,3 +38,23 @@ pub fn reset_device() -> Result<(), String> {
         Err("probe-rs reset failed".into())
     }
 }
+
+/// Flashes the given ELF to the device and resets it (detached — no
+/// probe-rs process stays running).
+///
+/// Reason: `probe-rs run` holds the debug interface during boot, which
+/// disrupts WiFi WPA handshake timing on macOS. `probe-rs attach` resets
+/// ESP32-C3 via shared USB-JTAG. Since HIL tests verify via broker state
+/// (not RTT output), we flash + reset and let the device run headless.
+pub fn download_and_reset(elf_path: &str) -> Result<(), String> {
+    let download = Command::new("probe-rs")
+        .args(["download", "--chip=esp32c3", elf_path])
+        .status()
+        .map_err(|e| format!("Failed to run probe-rs download: {}", e))?;
+
+    if !download.success() {
+        return Err("probe-rs download failed".into());
+    }
+
+    reset_device()
+}

@@ -11,6 +11,8 @@ use crate::temperature::temperature_client::TemperatureClient;
 pub mod mqtt;
 /// WiFi and network stack setup.
 pub mod network;
+/// DLR-rating-to-tap-position control logic.
+pub mod tap_control;
 /// Temperature sensor client.
 pub mod temperature;
 
@@ -44,12 +46,15 @@ pub async fn run<I2C>(i2c: I2C, stack: &'static embassy_net::Stack<'static>) -> 
 where
     I2C: embedded_hal::i2c::I2c,
 {
-    use crate::mqtt::{MQTT_TOPIC, Mqtt};
+    use crate::mqtt::{MQTT_TOPIC, Mqtt, RATING_TOPIC, TAP_POSITION_TOPIC};
+    use crate::tap_control::TapController;
     use defmt::info;
     use embassy_time::{Duration, Timer};
 
     let mut temp_client = TemperatureClient::new(i2c);
     let mut mqtt_client = Mqtt::init(stack).await;
+    mqtt_client.subscribe(RATING_TOPIC).await;
+    let mut tap_controller = TapController::new();
 
     info!("Starting application loop ({}s interval)...", SYSTEM_RATE);
     let mut loop_count: u32 = 0;
@@ -59,6 +64,14 @@ where
         info!("Loop #{}: Temperature = {}F", loop_count, temp_f);
 
         mqtt_client.publish(MQTT_TOPIC, temp_f).await;
+
+        if let Some(rating_a) = mqtt_client.try_receive_rating().await {
+            let tap = tap_controller.on_rating(rating_a);
+            info!("Rating {}A -> {}", rating_a, tap.as_str());
+            mqtt_client
+                .publish_str(TAP_POSITION_TOPIC, tap.as_str())
+                .await;
+        }
 
         if MODE == "development" {
             return Ok(());
