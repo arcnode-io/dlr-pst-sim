@@ -21,6 +21,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ENV");
     println!("cargo:rerun-if-env-changed=WIFI_PASSWORD");
     println!("cargo:rerun-if-env-changed=MQTT_PORT");
+    println!("cargo:rerun-if-env-changed=MQTT_HOST");
     println!("cargo:rerun-if-env-changed=FIRMWARE_VERSION");
 
     // Determine environment (default to "local")
@@ -41,8 +42,9 @@ fn main() {
     let wifi_password =
         std::env::var("WIFI_PASSWORD").expect("WIFI_PASSWORD environment variable must be set");
 
-    // Get MQTT host from config
-    let mqtt_host = &config.mqtt_host;
+    // Get MQTT host from env var (HIL tests bake the test host's actual LAN
+    // IP, since cfg.yml's value drifts with DHCP) or fall back to config.
+    let mqtt_host = std::env::var("MQTT_HOST").unwrap_or_else(|_| config.mqtt_host.clone());
 
     // Get MQTT port from env var (for HIL tests) or default to 1883
     let mqtt_port = std::env::var("MQTT_PORT").unwrap_or_else(|_| "1883".to_string());
