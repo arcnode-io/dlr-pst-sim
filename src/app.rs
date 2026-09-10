@@ -51,32 +51,61 @@ where
     use defmt::info;
     use embassy_time::{Duration, Timer};
 
+    // Reason: temp_client + tap_controller live outside the reconnect loop --
+    // a dropped MQTT connection doesn't change the physical tap position, so
+    // resetting tap_controller on reconnect would produce spurious tap
+    // "changes" caused by network blips instead of real rating changes.
     let mut temp_client = TemperatureClient::new(i2c);
-    let mut mqtt_client = Mqtt::init(stack).await;
-    mqtt_client.subscribe(RATING_TOPIC).await;
     let mut tap_controller = TapController::new();
-
-    info!("Starting application loop ({}s interval)...", SYSTEM_RATE);
     let mut loop_count: u32 = 0;
+
     loop {
-        loop_count += 1;
-        let temp_f = temp_client.read_fahrenheit();
-        info!("Loop #{}: Temperature = {}F", loop_count, temp_f);
-
-        mqtt_client.publish(MQTT_TOPIC, temp_f).await;
-
-        if let Some(rating_a) = mqtt_client.try_receive_rating().await {
-            let tap = tap_controller.on_rating(rating_a);
-            info!("Rating {}A -> {}", rating_a, tap.as_str());
-            mqtt_client
-                .publish_str(TAP_POSITION_TOPIC, tap.as_str())
-                .await;
+        let mut mqtt_client = match Mqtt::init(stack).await {
+            Some(client) => client,
+            None => {
+                info!("MQTT connect failed -- retrying...");
+                Timer::after(Duration::from_secs(SYSTEM_RATE)).await;
+                continue;
+            }
+        };
+        if !mqtt_client.subscribe(RATING_TOPIC).await {
+            Timer::after(Duration::from_secs(SYSTEM_RATE)).await;
+            continue;
         }
 
-        if MODE == "development" {
-            return Ok(());
+        info!("Starting application loop ({}s interval)...", SYSTEM_RATE);
+        loop {
+            loop_count += 1;
+            let temp_f = temp_client.read_fahrenheit();
+            info!("Loop #{}: Temperature = {}F", loop_count, temp_f);
+
+            if !mqtt_client.publish(MQTT_TOPIC, temp_f).await {
+                break; // connection broken -- reconnect
+            }
+
+            match mqtt_client.try_receive_rating().await {
+                Ok(Some(rating_a)) => {
+                    let tap = tap_controller.on_rating(rating_a);
+                    info!("Rating {}A -> {}", rating_a, tap.as_str());
+                    if !mqtt_client
+                        .publish_str(TAP_POSITION_TOPIC, tap.as_str())
+                        .await
+                    {
+                        break; // connection broken -- reconnect
+                    }
+                }
+                Ok(None) => {}
+                Err(crate::mqtt::ConnectionLost) => break, // connection broken -- reconnect
+            }
+
+            if MODE == "development" {
+                return Ok(());
+            }
+
+            Timer::after(Duration::from_secs(SYSTEM_RATE)).await;
         }
 
+        info!("MQTT connection lost -- reconnecting...");
         Timer::after(Duration::from_secs(SYSTEM_RATE)).await;
     }
 }

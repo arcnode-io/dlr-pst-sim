@@ -19,6 +19,11 @@ pub const RATING_TOPIC: &str = "test/line_rating/A";
 /// convention as `RATING_TOPIC` -- see its docs.
 pub const TAP_POSITION_TOPIC: &str = "test/tap_position";
 
+/// Marker error: the MQTT connection is broken. Caller should stop using
+/// this client and reconnect via `Mqtt::init`.
+#[derive(Debug)]
+pub struct ConnectionLost;
+
 #[cfg(feature = "rust-mqtt")]
 use core::fmt::Write;
 #[cfg(feature = "rust-mqtt")]
@@ -49,8 +54,11 @@ impl<'a> Mqtt<'a> {
     /// * `stack` - Embassy network stack for TCP/IP connectivity
     ///
     /// # Returns
-    /// Connected MQTT client ready for publishing
-    pub async fn init(stack: &'a Stack<'a>) -> Self {
+    /// `Some(client)` connected and ready to publish. `None` if the TCP
+    /// connect or MQTT handshake failed (e.g. broker still down on a
+    /// reconnect attempt) -- caller should back off and retry `init` rather
+    /// than treat this as fatal.
+    pub async fn init(stack: &'a Stack<'a>) -> Option<Self> {
         // Parse broker config from env vars baked at build time
         let mqtt_host = env!("MQTT_HOST");
         let mqtt_port: u16 = env!("MQTT_PORT").parse().unwrap();
@@ -85,7 +93,11 @@ impl<'a> Mqtt<'a> {
         #[cfg(feature = "defmt")]
         defmt::info!("⏱️  TCP timeout set to 10 seconds");
 
-        socket.connect(remote_endpoint).await.unwrap();
+        if let Err(_e) = socket.connect(remote_endpoint).await {
+            #[cfg(feature = "defmt")]
+            defmt::info!("❌ TCP connect to broker failed: {:?}", _e);
+            return None;
+        }
 
         #[cfg(feature = "defmt")]
         defmt::info!("✅ TCP connected to MQTT broker successfully!");
@@ -113,12 +125,16 @@ impl<'a> Mqtt<'a> {
         #[cfg(feature = "defmt")]
         defmt::info!("🆔 Client ID: esp32c3");
 
-        client.connect_to_broker().await.unwrap();
+        if let Err(_e) = client.connect_to_broker().await {
+            #[cfg(feature = "defmt")]
+            defmt::info!("❌ MQTT handshake failed: {:?}", _e);
+            return None;
+        }
 
         #[cfg(feature = "defmt")]
         defmt::info!("✅ MQTT broker connected successfully!");
 
-        Self { client }
+        Some(Self { client })
     }
 
     /// Publish a temperature value to the specified topic.
@@ -126,7 +142,11 @@ impl<'a> Mqtt<'a> {
     /// # Arguments
     /// * `topic` - MQTT topic to publish to
     /// * `value` - Temperature value to publish
-    pub async fn publish(&mut self, topic: &str, value: f64) {
+    ///
+    /// # Returns
+    /// `true` on success. `false` means the connection is broken -- the
+    /// caller should stop using this client and reconnect via `init`.
+    pub async fn publish(&mut self, topic: &str, value: f64) -> bool {
         let mut payload: String<32> = String::new();
         write!(&mut payload, "{:.2}", value).ok();
 
@@ -147,10 +167,12 @@ impl<'a> Mqtt<'a> {
             Ok(_) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("✅ Message published successfully");
+                true
             }
             Err(e) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("❌ Failed to publish message: {:?}", e);
+                false
             }
         }
     }
@@ -160,7 +182,11 @@ impl<'a> Mqtt<'a> {
     /// # Arguments
     /// * `topic` - MQTT topic to publish to
     /// * `value` - String payload to publish verbatim
-    pub async fn publish_str(&mut self, topic: &str, value: &str) {
+    ///
+    /// # Returns
+    /// `true` on success. `false` means the connection is broken -- the
+    /// caller should stop using this client and reconnect via `init`.
+    pub async fn publish_str(&mut self, topic: &str, value: &str) -> bool {
         #[cfg(feature = "defmt")]
         defmt::info!("📤 Publishing to topic '{}': '{}'", topic, value);
 
@@ -172,10 +198,12 @@ impl<'a> Mqtt<'a> {
             Ok(_) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("✅ Message published successfully");
+                true
             }
             Err(e) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("❌ Failed to publish message: {:?}", e);
+                false
             }
         }
     }
@@ -185,15 +213,21 @@ impl<'a> Mqtt<'a> {
     ///
     /// # Arguments
     /// * `topic` - MQTT topic to subscribe to
-    pub async fn subscribe(&mut self, topic: &str) {
+    ///
+    /// # Returns
+    /// `true` on success. `false` means the connection is broken -- the
+    /// caller should stop using this client and reconnect via `init`.
+    pub async fn subscribe(&mut self, topic: &str) -> bool {
         match self.client.subscribe_to_topic(topic).await {
             Ok(()) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("✅ Subscribed to topic '{}'", topic);
+                true
             }
             Err(e) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("❌ Failed to subscribe to '{}': {:?}", topic, e);
+                false
             }
         }
     }
@@ -201,20 +235,24 @@ impl<'a> Mqtt<'a> {
     /// Poll for a pending subscribed message without blocking the caller.
     ///
     /// # Returns
-    /// The parsed numeric payload when a message is ready and decodes as a
-    /// float; `None` when nothing is pending, the payload isn't valid UTF-8,
-    /// or it doesn't parse as a number.
-    pub async fn try_receive_rating(&mut self) -> Option<f64> {
+    /// `Ok(Some(value))` when a message was ready and decoded as a float.
+    /// `Ok(None)` when nothing is pending, or a ready payload didn't decode
+    /// (not UTF-8 / not a number) -- both are non-fatal, keep looping.
+    /// `Err(())` means the connection is broken -- the caller should stop
+    /// using this client and reconnect via `init`.
+    pub async fn try_receive_rating(&mut self) -> Result<Option<f64>, ConnectionLost> {
         let (_topic, payload) = match self.client.receive_message_if_ready().await {
             Ok(Some(msg)) => msg,
-            Ok(None) => return None,
+            Ok(None) => return Ok(None),
             Err(e) => {
                 #[cfg(feature = "defmt")]
                 defmt::info!("❌ Failed to poll for subscribed message: {:?}", e);
-                return None;
+                return Err(ConnectionLost);
             }
         };
 
-        core::str::from_utf8(payload).ok()?.trim().parse().ok()
+        Ok(core::str::from_utf8(payload)
+            .ok()
+            .and_then(|s| s.trim().parse().ok()))
     }
 }
